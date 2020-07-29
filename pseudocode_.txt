@@ -1,0 +1,10 @@
+
+while(true){
+    print_next_station()
+    increase_speed()
+    sleep(10s) {geton/getoff be set by interrupt}
+    if (geton == 1 || getoff == 1){
+        decrease_speed()
+        sleep(10s)
+    }
+}
