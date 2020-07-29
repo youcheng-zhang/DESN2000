@@ -1,8 +1,8 @@
 ;
-; DESN2000.asm
+; Project.asm
 ;
-; Created: 14/07/2020 1:41:26 PM
-; Author : Group 8 
+; Created: 2020/7/26 12:26:18
+; Author : youcheng
 ;
 
 ; A function which will print the name of next station
@@ -61,6 +61,8 @@ ldi YH, high(@0)
 .cseg
 
 	.org 0x0000
+jmp RESET
+
 	.org INT0addr ; INT0addr is the address of EXT_INT0 (External Interrupt 0)
 		jmp EXT_INT0 ; interrupt vector for External Interrupt 0
 	.org INT1addr ; INT1addr is the address of EXT_INT1 (External Interrupt 1)
@@ -72,7 +74,6 @@ ldi YH, high(@0)
     ; every station take 20bytes, end with "!"
     stations: .db "Daring Harbour!     City Marine!        White Bay!          Simmons Point!      SYD Observatory!    SYD Aquarium! "
 
-rjmp RESET
 
 RESET:
 
@@ -128,7 +129,7 @@ RESET:
 	ser temp       ; set Port C as output
 	out DDRC, temp
 	
-	rjmp main
+	jmp main
 
 
 
@@ -187,7 +188,7 @@ Timer0OVF:     ; interrupt subroutine to Timer0
        cpi leds,pattern
        breq intr_led_off
        ldi leds,PATTERN
-       rjmp end_intr_led_off
+       jmp end_intr_led_off
 intr_led_off:
        ldi leds,0
 end_intr_led_off:
@@ -199,7 +200,7 @@ end_intr_led_off:
        adiw r25:r24, 1            ; increase the second counter by one
        sts SecondCounter, r24
        sts SecondCounter+1, r25
-       rjmp EndIF
+       jmp EndIF
 NotSecond:   ; store the new value of the temporary counter
        sts TempCounter, r24
        sts TempCounter+1, r25
@@ -216,16 +217,12 @@ EndIF: pop r24        ; epilogue starts
 
 
 main:
-
-    ; initialize current station
-    ldi xl, low(current_station) ; Let x pointer point tp current_station
-    ldi xh, high(current_station)
-    ldi temp, 3
-    st x,temp
-    call print_next_station
-	call LDE_on
+	call LED_on
+	call delay
+	call increase_speed
+	call LED_off
 halt:
-    rjmp halt
+    jmp halt
 
 
 
@@ -247,7 +244,7 @@ print_next_station:
     ldi temp1,1
     add temp,temp1
     st x,temp
-    rjmp end_reset_current_station
+    jmp end_reset_current_station
 reset_current_station:
     ldi temp,0
     st x,temp
@@ -266,7 +263,7 @@ print_loop:
     cpi temp1, 33 ; if temp1 == "!"
     breq end_print
     do_lcd_data temp1
-    rjmp print_loop
+    jmp print_loop
 end_print:
     pop temp1
     pop temp
@@ -299,7 +296,7 @@ increase_speed_loop:
     call delay
     call delay
     add temp1,temp2
-    rjmp increase_speed_loop
+    jmp increase_speed_loop
 end_increase_speed_loop:
 
     pop temp2
@@ -334,7 +331,7 @@ decrease_speed_loop:
     call delay
     call delay
     sub temp1,temp2
-    rjmp decrease_speed_loop
+    jmp decrease_speed_loop
 end_decrease_speed_loop:
     ldi temp1,0
     ldi temp,0
@@ -351,14 +348,9 @@ end_decrease_speed_loop:
 
 
 
-LDE_on:
+LED_on:
     push temp
-    in temp, SREG
-    push temp
-    push leds
 
-	ldi leds, 0xFF          ; main program starts here
-	out PORTC, leds     ; set all LEDs on at the beginning
 	ldi leds, PATTERN 
 	clear TempCounter         ; initialize the temporary counter to 0
 	clear SecondCounter      ; initialize the second counter to 0
@@ -370,9 +362,6 @@ LDE_on:
 	sts TIMSK0, temp           ; enable Timer0 Overflow Interrupt
 	sei                                    ; enable global interrupt
 
-    pop leds
-    pop temp
-    out SREG, temp
     pop temp
     ret
 
@@ -382,14 +371,12 @@ LDE_on:
 
 LED_off:
     push temp
-    in temp, SREG
-    push temp
 
+	ldi leds, 0
+	out PORTC, leds
 	ldi temp, 0
 	sts TIMSK0, temp           ; disable Timer0 Overflow Interrupt
 
-	pop temp
-    out SREG, temp
     pop temp
     ret
 
@@ -417,7 +404,7 @@ delay3:
     breq delay2
     nop
     inc temp2
-    rjmp delay3
+    jmp delay3
 leave:
     clr temp
     clr temp1
@@ -480,7 +467,7 @@ lcd_wait_loop:
 	in r16, PINF
 	lcd_clr LCD_E
 	sbrc r16, 7
-	rjmp lcd_wait_loop
+	jmp lcd_wait_loop
 	lcd_clr LCD_RW
 	ser r16
 	out DDRF, r16
