@@ -217,12 +217,39 @@ EndIF: pop r24        ; epilogue starts
 
 
 main:
-	call LED_on
-	call delay
-	call increase_speed
-	call LED_off
-halt:
-    jmp halt
+    call increase_speed
+leave_station:
+	call print_next_station
+    call sleep_5s
+    
+    ldi xl, low(get_on) ; Let x pointer point tp get_on
+    ldi xh, high(get_on)
+    ld temp,x
+    cpi temp,1
+    breq stop_at_next_station
+
+    ldi xl, low(get_off) ; Let x pointer point tp get_off
+    ldi xh, high(get_off)
+    ld temp,x
+    cpi temp,1
+    breq stop_at_next_station
+
+    rjmp leave_station
+
+stop_at_next_station:
+    ldi xl, low(get_on) ; Let x pointer point tp get_on
+    ldi xh, high(get_on)
+    ldi temp,0
+    st x, temp
+    ldi xl, low(get_off) ; Let x pointer point tp get_off
+    ldi xh, high(get_off)
+    ldi temp,0
+    st x, temp
+    call decrease_speed
+    call sleep_5s
+    call increase_speed
+
+    rjmp leave_station
 
 
 
@@ -315,7 +342,7 @@ decrease_speed:
     push temp1
     push temp2
 
-    ldi temp1,250
+    ldi temp1,160
     ldi temp,0
     ldi temp2,10
 decrease_speed_loop:
@@ -350,6 +377,9 @@ end_decrease_speed_loop:
 
 LED_on:
     push temp
+    in temp, SREG
+    push temp
+    push leds
 
 	ldi leds, PATTERN 
 	clear TempCounter         ; initialize the temporary counter to 0
@@ -362,6 +392,9 @@ LED_on:
 	sts TIMSK0, temp           ; enable Timer0 Overflow Interrupt
 	sei                                    ; enable global interrupt
 
+    pop leds
+    pop temp
+    out SREG, temp
     pop temp
     ret
 
@@ -371,12 +404,17 @@ LED_on:
 
 LED_off:
     push temp
+    in temp, SREG
+    push temp
 
 	ldi leds, 0
 	out PORTC, leds
-	ldi temp, 0
-	sts TIMSK0, temp           ; disable Timer0 Overflow Interrupt
+    ldi temp, 0
+    sts TIMSK0, temp           ; disable Timer0 Overflow Interrupt
+    sei
 
+	pop temp
+    out SREG, temp
     pop temp
     ret
 
@@ -497,3 +535,43 @@ sleep_5ms:
 	rcall sleep_1ms
 	rcall sleep_1ms
 	ret
+
+sleep_50ms:
+	rcall sleep_5ms
+	rcall sleep_5ms
+	rcall sleep_5ms
+	rcall sleep_5ms
+	rcall sleep_5ms
+	rcall sleep_5ms
+	rcall sleep_5ms
+	rcall sleep_5ms
+	rcall sleep_5ms
+	rcall sleep_5ms
+	ret
+
+sleep_500ms:
+	rcall sleep_50ms
+	rcall sleep_50ms
+	rcall sleep_50ms
+	rcall sleep_50ms
+	rcall sleep_50ms
+	rcall sleep_50ms
+	rcall sleep_50ms
+	rcall sleep_50ms
+	rcall sleep_50ms
+	rcall sleep_50ms
+	ret
+
+sleep_5s:
+	rcall sleep_500ms
+	rcall sleep_500ms
+	rcall sleep_500ms
+	rcall sleep_500ms
+	rcall sleep_500ms
+	rcall sleep_500ms
+	rcall sleep_500ms
+	rcall sleep_500ms
+	rcall sleep_500ms
+	rcall sleep_500ms
+    ret
+
