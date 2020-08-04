@@ -55,7 +55,8 @@ ldi YH, high(@0)
     get_off: .byte 1
 	SecondCounter: .byte 2     ; two-byte counter for counting seconds.
 	TempCounter: .byte 2       ; temporary counter used to determine if one second has passed
-
+    SpeedCounter: .byte 2     ; two-byte counter for counting seconds.
+    interrupt_mode: .byte 1
 
 
 .cseg
@@ -67,12 +68,15 @@ jmp RESET
 		jmp EXT_INT0 ; interrupt vector for External Interrupt 0
 	.org INT1addr ; INT1addr is the address of EXT_INT1 (External Interrupt 1)
 		jmp EXT_INT1 ; interrupt vector for External Interrupt 1
+    .org INT2addr    ; INT2addr is the address of EXT_INT2 (External Interrupt 0)
+        jmp EXT_INT2 
 	.org OVF0addr      ; OVF0addr is the address of Timer0 Overflow Interrupt Vector
 		jmp Timer0OVF   ; jump to the interrupt handler for Timer0 overflow.
 		jmp DEFAULT     ; default service for all other interrupts.
 	DEFAULT: reti     ; no interrupt handling 
     ; every station take 20bytes, end with "!"
     stations: .db "Daring Harbour!     City Marine!        White Bay!          Simmons Point!      SYD Observatory!    SYD Aquarium! "
+    emergency_message: .db "EMERGENCY!"
 
 
 RESET:
@@ -122,7 +126,7 @@ RESET:
 	ldi temp, (2 << ISC10) | (2 << ISC00)	; set for falling edge 
 	sts EICRA, temp 
 	in temp, EIMSK 
-	ori temp, (1<<INT0) | (1<<INT1) 
+	ori temp, (1<<INT0) | (1<<INT1)
 	out EIMSK, temp 
 	sei 
 
@@ -169,6 +173,24 @@ EXT_INT1: ; Interrupt handler for External Interrupt 1
 
 
 
+EXT_INT2:
+    push temp
+    push r25
+    push r24
+
+    lds r24, SpeedCounter
+    lds r25, SpeedCounter+1
+    adiw r25:r24, 1            ; increase the second counter by one
+    sts SpeedCounter, r24
+    sts SpeedCounter+1, r25
+
+    pop r24        ; epilogue starts
+    pop r25        ; restore all conflicting registers from the stack
+    pop temp
+    reti
+
+
+
 
 Timer0OVF:     ; interrupt subroutine to Timer0
        in temp, SREG
@@ -185,6 +207,15 @@ Timer0OVF:     ; interrupt subroutine to Timer0
        ldi temp, high(1302)      ; 7812 = 106/128
        cpc r25, temp
        brne NotSecond
+        ldi xl, low(interrupt_mode) ; Let x pointer point tp current_station
+        ldi xh, high(interrupt_mode)
+        ld temp, x
+        cpi temp,0
+        breq LED_mode
+        cpi temp,1
+        breq Speed_monitor_mode
+
+LED_mode:
        cpi leds,pattern
        breq intr_led_off
        ldi leds,PATTERN
@@ -193,6 +224,35 @@ intr_led_off:
        ldi leds,0
 end_intr_led_off:
        out PORTC, leds
+       rjmp end_mode
+
+Speed_monitor_mode:
+        ldi xl, low(SpeedCounter) ; Let x pointer point tp SpeedCounter
+        ldi xh, high(SpeedCounter)
+        ld temp, x
+        cpi temp,10
+        brge emergency
+        rjmp back_to_normal
+emergency:
+print_emergency:
+	    do_lcd_command 0b00000001 ; clear display
+    ldi zl, low(emergency_message<<1) ; Let x pointer point
+    ldi zh, high(emergency_message<<1) ; to the start
+print_emergency_message:
+    ldi temp,33
+    lpm temp1, z+
+    cp temp, temp1 ; if temp1 == "!"
+    breq end_emergency
+    do_lcd_data temp1
+    rjmp print_emergency_message
+back_to_normal:
+    call print_curr_station
+end_emergency:
+    clear SpeedCounter
+    rjmp end_mode
+
+
+end_mode:
        clear TempCounter      ; reset the temporary counter
        ; Load the value of the second counter
        lds r24, SecondCounter
@@ -218,6 +278,7 @@ EndIF: pop r24        ; epilogue starts
 
 main:
     call increase_speed
+    call Speed_detect_on
 leave_station:
 	call print_next_station
     call sleep_5s
@@ -237,6 +298,7 @@ leave_station:
     rjmp leave_station
 
 stop_at_next_station:
+    call Speed_detect_off
     ldi xl, low(get_on) ; Let x pointer point tp get_on
     ldi xh, high(get_on)
     ldi temp,0
@@ -250,9 +312,9 @@ stop_at_next_station:
     call sleep_5s
     call LED_off
     call increase_speed
+    call Speed_detect_on
 
     rjmp leave_station
-
 
 
 
@@ -302,6 +364,42 @@ end_print:
 
 
 
+
+print_curr_station:  
+    push temp
+    in temp, SREG
+    push temp
+    push temp1
+    ;current station
+    ldi xl, low(current_station) ; Let x pointer point tp current_station
+    ldi xh, high(current_station)
+    ld temp, x
+    ; temp now contains the index of the next station
+	do_lcd_command 0b00000001 ; clear display
+    ldi zl, low(stations<<1) ; Let z pointer point
+    ldi zh, high(stations<<1) ; to the start of stations
+    ldi temp1,20
+    ld temp, x
+    mul temp,temp1
+    add zl,r0
+    adc zh,r1
+print_curr_loop:
+    lpm temp1, z+
+    cpi temp1, 33 ; if temp1 == "!"
+    breq end_curr_print
+    do_lcd_data temp1
+    jmp print_curr_loop
+end_curr_print:
+    pop temp1
+    pop temp
+    out SREG, temp
+    pop temp
+    ret
+
+
+
+
+
 increase_speed:
     push temp
     in temp, SREG
@@ -338,7 +436,7 @@ decrease_speed:
     push temp1
     push temp2
 
-    ldi temp1,160
+    ldi temp1,150
     ldi temp,0
     ldi temp2,10
 decrease_speed_loop:
@@ -346,6 +444,8 @@ decrease_speed_loop:
     sts OCR3BH, temp
     cpi temp1,0
     brge end_decrease_speed_loop
+    call sleep_500ms
+    call sleep_500ms
     call sleep_500ms
     sub temp1,temp2
     jmp decrease_speed_loop
@@ -370,6 +470,12 @@ LED_on:
     in temp, SREG
     push temp
     push leds
+
+    ;mode:0 LED
+    ldi xl, low(interrupt_mode) ; Let x pointer point tp interrupt_mode
+    ldi xh, high(interrupt_mode)
+    ldi temp,0
+    st x,temp
 
 	ldi leds, PATTERN 
 	clear TempCounter         ; initialize the temporary counter to 0
@@ -408,6 +514,59 @@ LED_off:
     pop temp
     ret
 
+
+
+
+
+
+Speed_detect_on:
+    push temp
+    in temp, SREG
+    push temp
+
+    ldi temp, (2 << ISC20)
+    sts EICRA, temp   ; temp=0b00001010, so both interrupts are configured as falling edge triggered interrupts     
+    in temp, EIMSK
+    ori temp, (1<<INT2)  ; INT2=0
+    out EIMSK, temp  ; Enable External Interrupts 0 and 1
+
+    ;mode:1 Speed Detect
+    ldi xl, low(interrupt_mode) ; Let x pointer point tp interrupt_mode
+    ldi xh, high(interrupt_mode)
+    ldi temp,1
+    st x,temp
+
+	clear TempCounter         ; initialize the temporary counter to 0
+	clear SecondCounter      ; initialize the second counter to 0
+	ldi temp, 0b00000000
+	out TCCR0A, temp
+	ldi temp, 0b00000010
+	out TCCR0B, temp          ; set prescalar value to 8
+	ldi temp, 1<<TOIE0        ; TOIE0 is the bit number of TOIE0 which is 0   
+	sts TIMSK0, temp           ; enable Timer0 Overflow Interrupt
+	sei                                    ; enable global interrupt
+
+    pop temp
+    out SREG, temp
+    pop temp
+    ret
+
+
+
+
+Speed_detect_off:
+    push temp
+    in temp, SREG
+    push temp
+
+    ldi temp, 0
+    sts TIMSK0, temp           ; disable Timer1 Overflow Interrupt
+    sei
+
+	pop temp
+    out SREG, temp
+    pop temp
+    ret
 
 
 
