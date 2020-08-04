@@ -246,7 +246,9 @@ stop_at_next_station:
     ldi temp,0
     st x, temp
     call decrease_speed
+    call LED_on
     call sleep_5s
+    call LED_off
     call increase_speed
 
     rjmp leave_station
@@ -315,13 +317,7 @@ increase_speed_loop:
     sts OCR3BH, temp
     cpi temp1,250
     brlt end_increase_speed_loop
-    call delay
-    call delay
-    call delay
-    call delay
-    call delay
-    call delay
-    call delay
+    call sleep_500ms
     add temp1,temp2
     jmp increase_speed_loop
 end_increase_speed_loop:
@@ -350,13 +346,7 @@ decrease_speed_loop:
     sts OCR3BH, temp
     cpi temp1,0
     brge end_decrease_speed_loop
-    call delay
-    call delay
-    call delay
-    call delay
-    call delay
-    call delay
-    call delay
+    call sleep_500ms
     sub temp1,temp2
     jmp decrease_speed_loop
 end_decrease_speed_loop:
