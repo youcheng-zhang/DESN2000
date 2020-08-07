@@ -517,8 +517,16 @@ main:
     call Speed_detect_on
 leave_station:
 	call print_next_station
+    clr temp
+    lds temp2, TravelTime
+travel_time_start:    
+    cp temp, temp2 
+    breq travel_time_end
     call sleep_5s
-    
+    inc temp
+    rjmp travel_time_start
+travel_time_end:
+
     ldi xl, low(get_on) ; Let x pointer point tp get_on
     ldi xh, high(get_on)
     ld temp,x
@@ -545,7 +553,16 @@ stop_at_next_station:
     st x, temp
     call decrease_speed
     call LED_on
+
+    clr temp
+    lds temp2, StopTime
+stop_time_start:
+    cp temp, temp2 
+    breq stop_time_end
     call sleep_5s
+    inc temp
+    rjmp travel_time_start
+stop_time_end:
     call LED_off
     call increase_speed
     call Speed_detect_on
