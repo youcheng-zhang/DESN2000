@@ -962,3 +962,69 @@ sleep_5s:
 	rcall sleep_500ms
     ret
 
+keypad_delay: ; for debouncing switches
+    push temp
+    in temp, SREG
+    push temp
+    push temp1
+    push temp2
+keypad_delay1: 
+    clr temp1
+    inc temp
+    cpi temp, 1
+    breq leave2
+keypad_delay2:
+    clr temp2
+    inc temp1
+    cpi temp1, 100
+    breq keypad_delay1
+keypad_delay3:
+    cpi temp2, 50
+    breq keypad_delay2
+    nop
+    inc temp2
+    jmp keypad_delay3
+leave2:
+    clr temp
+    clr temp1
+    clr temp2
+    pop temp2
+    pop temp1
+    pop temp
+    out SREG, temp
+    pop temp
+	ret
+
+lcd_delay: ; for debouncing switches
+    push temp
+    in temp, SREG
+    push temp
+    push temp1
+    push temp2
+lcd_delay1: 
+    clr temp1
+    inc temp
+    cpi temp, 200
+    breq leave1
+lcd_delay2:
+    clr temp2
+    inc temp1
+    cpi temp1, 255
+    breq lcd_delay1
+lcd_delay3:
+    cpi temp2, 255
+    breq lcd_delay2
+    nop
+    inc temp2
+    jmp lcd_delay3
+leave1:
+    clr temp
+    clr temp1
+    clr temp2
+    pop temp2
+    pop temp1
+    pop temp
+    out SREG, temp
+    pop temp
+	ret
+
