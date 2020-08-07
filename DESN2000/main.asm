@@ -108,7 +108,6 @@ RESET:
     STS DDRL, temp     ; cannot use out
     ser temp
     out DDRC, temp ; Make PORTC all outputs
-    out PORTC, temp ; Turn on all the LEDs
 
 	ser r16
 	out DDRF, r16
