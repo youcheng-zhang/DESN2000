@@ -12,8 +12,20 @@
 .def temp=r16
 .def temp1=r17
 .def temp2=r18
-.equ PATTERN = 0b11  ; define a pattern for 8 LEDs
 .def  leds = r19   ; r17 stores a LED pattern
+.def row =r20
+.def col =r21
+.def mask =r22
+.equ PATTERN = 0b11  ; define a pattern for 8 LEDs
+.equ PORTLDIR = 0xF0
+.equ INITCOLMASK = 0xEF
+.equ INITROWMASK = 0x01
+.equ ROWMASK = 0x0F
+
+.equ LCD_RS = 7
+.equ LCD_E = 6
+.equ LCD_RW = 5
+.equ LCD_BE = 4
 
 ; macros
 .macro do_lcd_command
@@ -26,11 +38,12 @@
 	rcall lcd_data
 	rcall lcd_wait
 .endmacro
-
-.equ LCD_RS = 7
-.equ LCD_E = 6
-.equ LCD_RW = 5
-.equ LCD_BE = 4
+.macro do_lcd_data1
+	ldi r17, @0
+	mov r16, r17
+	rcall lcd_data
+	rcall lcd_wait
+.endmacro
 
 .macro lcd_set
 	sbi PORTA, @0
@@ -57,7 +70,11 @@ ldi YH, high(@0)
 	TempCounter: .byte 2       ; temporary counter used to determine if one second has passed
     SpeedCounter: .byte 2     ; two-byte counter for counting seconds.
     interrupt_mode: .byte 1
-
+    LastKeyPressed: .byte 1		; stores the last key pressed
+    LastKeyPressedAscii: .byte 1 ; stores the last key pressed ascii value
+    NumberStations: .byte 1 	; stores the number of stations
+    TravelTime:		.byte 1 	; stores the travel time 
+    StopTime:		.byte 1 	; stores the stop time
 
 .cseg
 
@@ -77,7 +94,7 @@ jmp RESET
     ; every station take 20bytes, end with "!"
     stations: .db "Daring Harbour!     City Marine!        White Bay!          Simmons Point!      SYD Observatory!    SYD Aquarium! "
     emergency_message: .db "EMERGENCY!"
-
+    INVALID_INPUT: .db "INVALID INPUT!"
 
 RESET:
 
@@ -86,6 +103,12 @@ RESET:
 	out SPL, r16
 	ldi r16, high(RAMEND)
 	out SPH, r16
+
+    ldi temp, PORTLDIR ; columns are outputs, rows are inputs
+    STS DDRL, temp     ; cannot use out
+    ser temp
+    out DDRC, temp ; Make PORTC all outputs
+    out PORTC, temp ; Turn on all the LEDs
 
 	ser r16
 	out DDRF, r16
@@ -132,9 +155,224 @@ RESET:
 
 	ser temp       ; set Port C as output
 	out DDRC, temp
+    rjmp setup
 	
-	jmp main
+; transition to the setup phase
+setup:
+    do_lcd_data1 'N'
+    do_lcd_data1 'U'
+    do_lcd_data1 'M'
+    do_lcd_data1 ' '
+    do_lcd_data1 'S'
+    do_lcd_data1 'T'
+    do_lcd_data1 'A'
+    do_lcd_data1 'T'
+    do_lcd_data1 'I'
+    do_lcd_data1 'O'
+    do_lcd_data1 'N'
+    do_lcd_data1 'S'
+    do_lcd_data1 ':'
+    do_lcd_data1 ' '
+    call keypad			; calls keypad, after this code a valid input is stored in LastKeyPressed 
+                        ; and LastKeyPressedAscii contains the ascii version
 
+    ; check if key press is valid, LastKeyPressedAscii >= '1'
+    lds temp, LastKeyPressedAscii
+    ldi temp2, '1'
+    cp temp, temp2
+    brlo incorrect_output1
+    ; check if key press is valid, LastKeyPressedAscii <= '9'
+    lds temp, LastKeyPressedAscii
+    ldi temp2, '9'
+    cp temp2, temp
+    brlo incorrect_output1
+
+    ; save num stations, then move onto next stage
+    lds temp, LastKeyPressed
+    sts NumberStations, temp
+    jmp setup_time
+
+; handle incorrect output
+incorrect_output1:
+    call print_invalid
+    call lcd_delay
+    do_lcd_command 0b00000001 ; clear display
+    jmp setup
+
+print_invalid:
+    do_lcd_command 0b00000001 ; clear display
+    ldi zl, low(INVALID_INPUT<<1) ; Let z point to start
+    ldi zh, high(INVALID_INPUT<<1) ; to the start
+
+print_invalid_message:
+    ldi temp,33
+    lpm temp1, z+
+    cp temp, temp1					; if temp1 == "!"
+    breq invalid_end
+    do_lcd_data temp1
+    rjmp print_invalid_message
+
+invalid_end:
+    ret
+
+setup_time:
+    do_lcd_command 0b00000001 ; clear display
+    do_lcd_data1 'T'
+    do_lcd_data1 'R'
+    do_lcd_data1 'A'
+    do_lcd_data1 'V'
+    do_lcd_data1 'E'
+    do_lcd_data1 'L'
+    do_lcd_data1 ' '
+    do_lcd_data1 'T'
+    do_lcd_data1 'I'
+    do_lcd_data1 'M'
+    do_lcd_data1 'E'
+    do_lcd_data1 ':'
+    do_lcd_data1 ' '
+    call keypad			; calls keypad, after this code a valid input is stored in LastKeyPressed 
+                        ; and LastKeyPressedAscii contains the ascii version
+
+    ; check if key press is valid, LastKeyPressedAscii >= '1'
+    lds temp, LastKeyPressedAscii
+    ldi temp2, '1'
+    cp temp, temp2
+    brlo incorrect_output2
+    ; check if key press is valid, LastKeyPressedAscii <= '9'
+    lds temp, LastKeyPressedAscii
+    ldi temp2, '9'
+    cp temp2, temp
+    brlo incorrect_output2
+
+    ; save travel time, then move onto next stage
+    lds temp, LastKeyPressed
+    sts TravelTime, temp
+    jmp setup_stop_time
+
+incorrect_output2:
+    call print_invalid
+    call lcd_delay
+    do_lcd_command 0b00000001 ; clear display
+    jmp setup_time
+
+setup_stop_time:
+    do_lcd_command 0b00000001 ; clear display
+    do_lcd_data1 'S'
+    do_lcd_data1 'T'
+    do_lcd_data1 'O'
+    do_lcd_data1 'P'
+    do_lcd_data1 ' '
+    do_lcd_data1 'T'
+    do_lcd_data1 'I'
+    do_lcd_data1 'M'
+    do_lcd_data1 'E'
+    do_lcd_data1 ':'
+    do_lcd_data1 ' '
+    call keypad			; calls keypad, after this code a valid input is stored in LastKeyPressed 
+                        ; and LastKeyPressedAscii contains the ascii version
+
+    ; check if key press is valid, LastKeyPressedAscii >= '1'
+    lds temp, LastKeyPressedAscii
+    ldi temp2, '1'
+    cp temp, temp2
+    brlo incorrect_output3
+    ; check if key press is valid, LastKeyPressedAscii <= '9'
+    lds temp, LastKeyPressedAscii
+    ldi temp2, '9'
+    cp temp2, temp
+    brlo incorrect_output3
+
+    ; save stop time, then move to main
+    lds temp, LastKeyPressed
+    sts StopTime, temp
+    do_lcd_command 0b00000001 ; final clear display ends setup
+    jmp main
+
+incorrect_output3:
+    call print_invalid
+    call lcd_delay
+    do_lcd_command 0b00000001 ; clear display
+    jmp setup_stop_time
+
+
+; keypad keeps scanning the keypad to find which key is pressed.
+keypad:
+    ldi mask, INITCOLMASK ; initial column mask
+    clr col ; initial column
+colloop:
+    STS PORTL, mask ; set column to mask value
+    ; (sets column 0 off)
+    ldi temp, 0xFF ; implement a delay so the
+    ; hardware can stabilize
+delay_simple:
+    dec temp
+    brne delay_simple
+    LDS temp, PINL ; read PORTL. Cannot use in 
+    andi temp, ROWMASK ; read only the row bits
+    cpi temp, 0xF ; check if any rows are grounded
+    breq nextcol ; if not go to the next column
+    ldi mask, INITROWMASK ; initialise row check
+    clr row ; initial row
+rowloop:      
+    mov temp2, temp
+    and temp2, mask ; check masked bit
+    brne skipconv ; if the result is non-zero,
+    ; we need to look again
+
+
+    rcall convert ; if bit is clear, convert the bitcode
+    call keypad_delay
+    lds temp, LastKeyPressedAscii
+    do_lcd_data temp			; print out the pressed key
+    lds temp, LastKeyPressed
+    out PORTC, temp
+    ret
+
+    jmp keypad ; and start again
+skipconv:
+    inc row ; else move to the next row
+    lsl mask ; shift the mask to the next bit
+    jmp rowloop          
+nextcol:     
+    cpi col, 3 ; check if we^�re on the last column
+    breq keypad ; if so, no buttons were pushed,
+    ; so start again.
+
+    sec ; else shift the column mask:
+    ; We must set the carry bit
+    rol mask ; and then rotate left by a bit,
+    ; shifting the carry into
+    ; bit zero. We need this to make
+    ; sure all the rows have
+    ; pull-up resistors
+    inc col ; increment column value
+    jmp colloop ; and check the next column
+    ; convert function converts the row and column given to a
+    ; binary number and also outputs the value to PORTC.
+    ; Inputs come from registers row and col and output is in
+    ; temp.
+
+
+convert:   ; converts a VALID number into the right hex
+    cpi col, 3 ; we return
+    breq convert_end
+    cpi row, 3 ; we return
+    breq convert_end
+    mov temp, row ; otherwise we have a number (1-9)
+    lsl temp ; temp = row * 2
+    add temp, row ; temp = row * 3
+    add temp, col ; add the column address
+    ; to get the offset from 1
+    ldi temp2, '1'
+    add temp, temp2  ; row*3 + col + '1'
+
+convert_end:
+    sts LastKeyPressedAscii, temp		; store the ascii value of the last key pressed
+    ldi temp2, '1'
+    sub temp, temp2
+    inc temp							; stores the bit vlaue of the last key pressed
+    sts LastKeyPressed, temp
+    ret ; return to caller
 
 
 ; set get_off to 1 if the button triggered
