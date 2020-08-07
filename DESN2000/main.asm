@@ -567,7 +567,7 @@ print_next_station:
     ldi xh, high(current_station)
     ld temp, x
     lds temp2, NumberStations
-    dec temp2,
+    dec temp2
     cp temp, temp2
     ;cpi temp,5
     brge reset_current_station
