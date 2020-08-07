@@ -92,7 +92,7 @@ jmp RESET
 		jmp DEFAULT     ; default service for all other interrupts.
 	DEFAULT: reti     ; no interrupt handling 
     ; every station take 20bytes, end with "!"
-    stations: .db "Daring Harbour!     City Marine!        White Bay!          Simmons Point!      SYD Observatory!    SYD Aquarium! "
+    stations: .db "Daring Harbour!     City Marine!        White Bay!          Fish Market!        Anzac Bridge!       Simmons Point!      SYD Observatory!    SYD Aquarium!       The Star!           "
     emergency_message: .db "EMERGENCY!"
     INVALID_INPUT: .db "INVALID INPUT!"
 
@@ -566,7 +566,10 @@ print_next_station:
     ldi xl, low(current_station) ; Let x pointer point tp current_station
     ldi xh, high(current_station)
     ld temp, x
-    cpi temp,5
+    lds temp2, NumberStations
+    dec temp2,
+    cp temp, temp2
+    ;cpi temp,5
     brge reset_current_station
     ldi temp1,1
     add temp,temp1
