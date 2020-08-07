@@ -517,15 +517,54 @@ main:
 leave_station:
 	call print_next_station
 
-    clr temp
-    lds temp2, TravelTime
-travel_time_start:    
-    cp temp, temp2 
-    breq travel_time_end
+    lds temp, TravelTime
+    cpi temp, 1
+    breq if1
+    cpi temp, 2
+    breq if2
+    cpi temp, 3
+    breq if3
+    cpi temp, 4
+    breq if4
+    cpi temp, 5
+    breq if5
+    cpi temp, 6
+    breq if6
+    cpi temp, 7
+    breq if7
+    cpi temp, 8
+    breq if8
+    cpi temp, 9
+    breq if9
+if1:
     call sleep_5s
-    inc temp
-    rjmp travel_time_start
-travel_time_end:
+    jmp if_end
+if2:
+    call sleep_10s
+    jmp if_end
+if3:
+    call sleep_15s
+    jmp if_end
+if4:
+    call sleep_20s
+    jmp if_end
+if5:
+    call sleep_25s
+    jmp if_end
+if6:
+    call sleep_30s
+    jmp if_end
+if7:
+    call sleep_35s
+    jmp if_end
+if8:
+    call sleep_40s
+    jmp if_end
+if9:
+    call sleep_45s
+    jmp if_end
+
+if_end:
 
     ldi xl, low(get_on) ; Let x pointer point tp get_on
     ldi xh, high(get_on)
@@ -554,15 +593,54 @@ stop_at_next_station:
     call decrease_speed
     call LED_on
 
-    clr temp
-    lds temp2, StopTime
-stop_time_start:
-    cp temp, temp2 
-    breq stop_time_end
+lds temp, StopTime
+    cpi temp, 1
+    breq if10
+    cpi temp, 2
+    breq if20
+    cpi temp, 3
+    breq if30
+    cpi temp, 4
+    breq if40
+    cpi temp, 5
+    breq if50
+    cpi temp, 6
+    breq if60
+    cpi temp, 7
+    breq if70
+    cpi temp, 8
+    breq if80
+    cpi temp, 9
+    breq if90
+if10:
     call sleep_5s
-    inc temp
-    rjmp stop_time_start
-stop_time_end:
+    jmp if_end1
+if20:
+    call sleep_10s
+    jmp if_end1
+if30:
+    call sleep_15s
+    jmp if_end1
+if40:
+    call sleep_20s
+    jmp if_end1
+if50:
+    call sleep_25s
+    jmp if_end1
+if60:
+    call sleep_30s
+    jmp if_end1
+if70:
+    call sleep_35s
+    jmp if_end1
+if80:
+    call sleep_40s
+    jmp if_end1
+if90:
+    call sleep_45s
+    jmp if_end1
+
+if_end1:
     call LED_off
     call increase_speed
     call Speed_detect_on
@@ -978,6 +1056,56 @@ sleep_5s:
 	rcall sleep_500ms
 	rcall sleep_500ms
 	rcall sleep_500ms
+    ret
+
+sleep_10s:
+	rcall sleep_5s
+	rcall sleep_5s
+    ret
+
+sleep_15s:
+	rcall sleep_5s
+	rcall sleep_5s
+    rcall sleep_5s
+    ret
+
+sleep_20s:
+	rcall sleep_10s
+	rcall sleep_10s
+    ret
+
+sleep_25s:
+	rcall sleep_10s
+	rcall sleep_10s
+    rcall sleep_5s
+    ret
+
+sleep_30s:
+	rcall sleep_10s
+	rcall sleep_10s
+    rcall sleep_10s
+    ret
+
+sleep_35s:
+	rcall sleep_10s
+	rcall sleep_10s
+    rcall sleep_10s
+    rcall sleep_5s
+    ret
+
+sleep_40s:
+	rcall sleep_10s
+	rcall sleep_10s
+    rcall sleep_10s
+    rcall sleep_10s
+    ret
+
+sleep_45s:
+	rcall sleep_10s
+	rcall sleep_10s
+    rcall sleep_10s
+    rcall sleep_10s
+    rcall sleep_5s
     ret
 
 keypad_delay: ; for debouncing switches
