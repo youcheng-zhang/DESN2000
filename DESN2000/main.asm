@@ -324,8 +324,6 @@ rowloop:
     call keypad_delay
     lds temp, LastKeyPressedAscii
     do_lcd_data temp			; print out the pressed key
-    lds temp, LastKeyPressed
-    out PORTC, temp
     ret
 
     jmp keypad ; and start again
