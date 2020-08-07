@@ -516,6 +516,7 @@ main:
     call Speed_detect_on
 leave_station:
 	call print_next_station
+
     clr temp
     lds temp2, TravelTime
 travel_time_start:    
@@ -560,7 +561,7 @@ stop_time_start:
     breq stop_time_end
     call sleep_5s
     inc temp
-    rjmp travel_time_start
+    rjmp stop_time_start
 stop_time_end:
     call LED_off
     call increase_speed
